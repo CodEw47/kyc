@@ -1,0 +1,114 @@
+name: Deploy AWS Amplify
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch para deploy (opcional)"
+        required: false
+        default: ""
+
+jobs:
+  ci:
+    uses: ./.github/workflows/pull_request.yml
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set deployment branch
+        id: branch
+        run: |
+          BRANCH_INPUT="${{ github.event.inputs.branch }}"
+
+          if [[ -n "$BRANCH_INPUT" ]]; then
+            echo "name=$BRANCH_INPUT" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Trigger Amplify deployment
+        id: trigger
+        env:
+          DEPLOY_BRANCH: ${{ steps.branch.outputs.name }}
+          AMPLIFY_APP_ID_SECRET: ${{ secrets.AMPLIFY_APP_ID }}
+          AMPLIFY_APP_ID_FALLBACK: d1pfge0jj4y5ly
+        run: |
+          set -euo pipefail
+
+          AMPLIFY_APP_ID="${AMPLIFY_APP_ID_SECRET:-$AMPLIFY_APP_ID_FALLBACK}"
+
+          if [[ -z "$AMPLIFY_APP_ID" ]]; then
+            echo "AMPLIFY_APP_ID não definido." >&2
+            exit 1
+          fi
+
+          if ! aws amplify get-branch --app-id "$AMPLIFY_APP_ID" --branch-name "$DEPLOY_BRANCH" >/dev/null 2>&1; then
+            echo "Branch $DEPLOY_BRANCH não existe no Amplify. Criando..."
+            aws amplify create-branch --app-id "$AMPLIFY_APP_ID" --branch-name "$DEPLOY_BRANCH" >/dev/null
+          fi
+
+          JOB_JSON="$(aws amplify start-job \
+            --app-id "$AMPLIFY_APP_ID" \
+            --branch-name "$DEPLOY_BRANCH" \
+            --job-type RELEASE)"
+
+          JOB_ID="$(echo "$JOB_JSON" | jq -r '.jobSummary.jobId')"
+
+          if [[ -z "$JOB_ID" || "$JOB_ID" == "null" ]]; then
+            echo "Falha ao iniciar job de deploy no Amplify." >&2
+            echo "$JOB_JSON" >&2
+            exit 1
+          fi
+
+          echo "app_id=$AMPLIFY_APP_ID" >> "$GITHUB_OUTPUT"
+          echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for deployment result
+        env:
+          APP_ID: ${{ steps.trigger.outputs.app_id }}
+          JOB_ID: ${{ steps.trigger.outputs.job_id }}
+          DEPLOY_BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+          set -euo pipefail
+
+          echo "Aguardando conclusão do job $JOB_ID no branch $DEPLOY_BRANCH"
+
+          for _ in {1..60}; do
+            STATUS="$(aws amplify get-job --app-id "$APP_ID" --branch-name "$DEPLOY_BRANCH" --job-id "$JOB_ID" | jq -r '.job.summary.status')"
+            echo "Status atual: $STATUS"
+
+            if [[ "$STATUS" == "SUCCEED" ]]; then
+              echo "Deploy concluído com sucesso."
+              exit 0
+            fi
+
+            if [[ "$STATUS" == "FAILED" || "$STATUS" == "CANCELLED" ]]; then
+              echo "Deploy falhou com status $STATUS" >&2
+              exit 1
+            fi
+
+            sleep 20
+          done
+
+          echo "Timeout aguardando conclusão do deploy do Amplify." >&2
+          exit 1
