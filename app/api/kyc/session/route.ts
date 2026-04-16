@@ -7,6 +7,23 @@ export interface KYCTokenPayload {
   exp?: number
 }
 
+function getAllowedApiKeys() {
+  const raw = process.env.KYC_ALLOWED_API_KEYS ?? ''
+  return raw
+    .split(',')
+    .map((key: string) => key.trim())
+    .filter(Boolean)
+}
+
+function extractApiKey(req: NextRequest, bodyApiKey?: string) {
+  const fromHeader = req.headers.get('x-api-key')
+  if (fromHeader) return fromHeader
+
+  if (bodyApiKey && typeof bodyApiKey === 'string') return bodyApiKey
+
+  return null
+}
+
 /**
  * POST /api/kyc/session
  *
@@ -19,7 +36,17 @@ export interface KYCTokenPayload {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { token } = body as { token?: string }
+    const { token, apiKey } = body as { token?: string; apiKey?: string }
+
+    const allowedApiKeys = getAllowedApiKeys()
+    if (allowedApiKeys.length === 0) {
+      return NextResponse.json({ error: 'KYC_ALLOWED_API_KEYS não configurada no backend' }, { status: 500 })
+    }
+
+    const providedApiKey = extractApiKey(req, apiKey)
+    if (!providedApiKey || !allowedApiKeys.includes(providedApiKey)) {
+      return NextResponse.json({ error: 'API key inválida ou ausente' }, { status: 401 })
+    }
 
     if (!token || typeof token !== 'string') {
       return NextResponse.json({ error: 'Token é obrigatório' }, { status: 400 })

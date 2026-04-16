@@ -21,6 +21,7 @@ export function KYCEntryPage() {
   const [errorMessage, setErrorMessage] = useState('')
 
   const token = searchParams?.get('token')
+  const apiKey = searchParams?.get('apiKey')
 
   useEffect(() => {
     if (!token) {
@@ -33,17 +34,20 @@ export function KYCEntryPage() {
       setStatus('error')
       return
     }
-    startSession(token)
+    startSession(token, apiKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, activeToken, steps.length, router])
+  }, [token, apiKey, activeToken, steps.length, router])
 
-  async function startSession(rawToken: string) {
+  async function startSession(rawToken: string, rawApiKey: string | null) {
     setStatus('loading')
     try {
       const res = await fetch('/api/kyc/session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: rawToken })
+        headers: {
+          'Content-Type': 'application/json',
+          ...(rawApiKey ? { 'x-api-key': rawApiKey } : {})
+        },
+        body: JSON.stringify({ token: rawToken, apiKey: rawApiKey ?? undefined })
       })
 
       const json = await res.json()
