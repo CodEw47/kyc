@@ -20,8 +20,8 @@ export function KYCEntryPage() {
   const [status, setStatus] = useState<Status>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
-  const token = searchParams?.get('token')
-  const apiKey = searchParams?.get('apiKey')
+  const token = searchParams?.get('token') ?? null
+  const apiKey = searchParams?.get('apiKey') ?? null
 
   useEffect(() => {
     if (!token) {
