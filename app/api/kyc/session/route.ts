@@ -1,6 +1,9 @@
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 export interface KYCTokenPayload {
   webhookUrl: string
   steps: string[]
@@ -8,7 +11,12 @@ export interface KYCTokenPayload {
 }
 
 function getAllowedApiKeys() {
-  const raw = process.env.KYC_ALLOWED_API_KEYS ?? ''
+  // Dynamic env access prevents build-time inlining surprises in some SSR hosts.
+  const raw =
+    Reflect.get(process.env, 'KYC_ALLOWED_API_KEYS') ??
+    Reflect.get(process.env, 'KYC_ALLOWED_APIKEYS') ??
+    ''
+
   return raw
     .split(',')
     .map((key: string) => key.trim())
@@ -40,7 +48,13 @@ export async function POST(req: NextRequest) {
 
     const allowedApiKeys = getAllowedApiKeys()
     if (allowedApiKeys.length === 0) {
-      return NextResponse.json({ error: 'KYC_ALLOWED_API_KEYS não configurada no backend' }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: 'KYC_ALLOWED_API_KEYS não configurada no backend',
+          hint: 'Defina a variável em Hosting > Environment variables e faça novo deploy.'
+        },
+        { status: 500 }
+      )
     }
 
     const providedApiKey = extractApiKey(req, apiKey)
