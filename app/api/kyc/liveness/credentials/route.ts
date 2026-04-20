@@ -21,14 +21,31 @@ function isCacheValid() {
   return expirationMs - nowMs > 120000
 }
 
+async function resolveRuntimeCredentials() {
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
+  const sessionToken = process.env.AWS_SESSION_TOKEN
+
+  if (accessKeyId && secretAccessKey) {
+    return {
+      accessKeyId,
+      secretAccessKey,
+      sessionToken,
+      expiration: new Date(Date.now() + 60 * 60 * 1000)
+    }
+  }
+
+  const credentialProvider = defaultProvider()
+  return credentialProvider()
+}
+
 export async function GET() {
   if (isCacheValid() && cached) {
     return NextResponse.json(cached)
   }
 
   try {
-    const credentialProvider = defaultProvider()
-    const creds = await credentialProvider()
+    const creds = await resolveRuntimeCredentials()
 
     if (!creds.accessKeyId || !creds.secretAccessKey || !creds.sessionToken) {
       return NextResponse.json({ error: 'Provider não retornou credenciais temporárias válidas' }, { status: 500 })
@@ -48,8 +65,15 @@ export async function GET() {
 
     return NextResponse.json(cached)
   } catch (error) {
-    console.error('[Liveness Credentials] Erro ao obter credenciais da role IAM:', error)
+    console.error('[Liveness Credentials] Erro ao obter credenciais do runtime AWS:', error)
     const details = error instanceof Error ? error.message : 'Erro desconhecido'
-    return NextResponse.json({ error: 'Falha ao obter credenciais IAM para liveness', details }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: 'Falha ao obter credenciais AWS para liveness',
+        details,
+        hint: 'Configure AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY ou anexe IAM role ao runtime do Amplify.'
+      },
+      { status: 500 }
+    )
   }
 }
