@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
-import { STSClient, GetSessionTokenCommand } from '@aws-sdk/client-sts'
+import { defaultProvider } from '@aws-sdk/credential-provider-node'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 interface CachedCredentials {
   accessKeyId: string
@@ -23,51 +26,30 @@ export async function GET() {
     return NextResponse.json(cached)
   }
 
-  const region = process.env.AWS_REGION ?? 'us-east-1'
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
-
-  if (!accessKeyId || !secretAccessKey) {
-    return NextResponse.json(
-      { error: 'AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY não configurados no backend' },
-      { status: 500 }
-    )
-  }
-
   try {
-    const sts = new STSClient({
-      region,
-      credentials: {
-        accessKeyId,
-        secretAccessKey
-      }
-    })
+    const credentialProvider = defaultProvider()
+    const creds = await credentialProvider()
 
-    const resp = await sts.send(
-      new GetSessionTokenCommand({
-        DurationSeconds: 3600
-      })
-    )
-
-    const creds = resp.Credentials
-
-    if (!creds?.AccessKeyId || !creds.SecretAccessKey || !creds.SessionToken || !creds.Expiration) {
-      return NextResponse.json({ error: 'STS não retornou credenciais temporárias válidas' }, { status: 500 })
+    if (!creds.accessKeyId || !creds.secretAccessKey || !creds.sessionToken) {
+      return NextResponse.json({ error: 'Provider não retornou credenciais temporárias válidas' }, { status: 500 })
     }
 
+    const expiration =
+      creds.expiration instanceof Date
+        ? creds.expiration
+        : new Date(Date.now() + 60 * 60 * 1000)
+
     cached = {
-      accessKeyId: creds.AccessKeyId,
-      secretAccessKey: creds.SecretAccessKey,
-      sessionToken: creds.SessionToken,
-      expiration: creds.Expiration.toISOString()
+      accessKeyId: creds.accessKeyId,
+      secretAccessKey: creds.secretAccessKey,
+      sessionToken: creds.sessionToken,
+      expiration: expiration.toISOString()
     }
 
     return NextResponse.json(cached)
   } catch (error) {
-    console.error('[Liveness Credentials] Erro ao gerar credenciais temporárias:', error)
-    return NextResponse.json(
-      { error: 'Falha ao gerar credenciais temporárias para liveness' },
-      { status: 500 }
-    )
+    console.error('[Liveness Credentials] Erro ao obter credenciais da role IAM:', error)
+    const details = error instanceof Error ? error.message : 'Erro desconhecido'
+    return NextResponse.json({ error: 'Falha ao obter credenciais IAM para liveness', details }, { status: 500 })
   }
 }
