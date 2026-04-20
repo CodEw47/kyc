@@ -6,8 +6,20 @@ import {
   LivenessSessionStatus
 } from '@aws-sdk/client-rekognition'
 function buildRekognitionClient() {
-  // No Lambda do Amplify, o SDK lê automaticamente as credenciais da execution role
-  const region = process.env.AWS_REGION ?? process.env.KYC_AWS_REGION ?? 'us-east-1'
+  // KYC_AWS_REGION garante us-east-1 onde Rekognition Face Liveness está disponível
+  // (o app Amplify roda em us-east-2 onde o serviço não existe)
+  const region = process.env.KYC_AWS_REGION ?? 'us-east-1'
+  const accessKeyId = process.env.KYC_AWS_ACCESS_KEY_ID
+  const secretAccessKey = process.env.KYC_AWS_SECRET_ACCESS_KEY
+  const sessionToken = process.env.KYC_AWS_SESSION_TOKEN
+
+  if (accessKeyId && secretAccessKey) {
+    return new RekognitionClient({
+      region,
+      credentials: { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) },
+    })
+  }
+
   return new RekognitionClient({ region })
 }
 
