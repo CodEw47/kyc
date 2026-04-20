@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { defaultProvider } from '@aws-sdk/credential-provider-node'
+import { STSClient, GetSessionTokenCommand } from '@aws-sdk/client-sts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,19 +24,30 @@ function isCacheValid() {
 async function resolveRuntimeCredentials() {
   const accessKeyId = process.env.KYC_AWS_ACCESS_KEY_ID
   const secretAccessKey = process.env.KYC_AWS_SECRET_ACCESS_KEY
-  const sessionToken = process.env.KYC_AWS_SESSION_TOKEN
+  const region = process.env.KYC_AWS_REGION ?? 'us-east-1'
 
-  if (accessKeyId && secretAccessKey) {
-    return {
-      accessKeyId,
-      secretAccessKey,
-      sessionToken,
-      expiration: new Date(Date.now() + 60 * 60 * 1000)
-    }
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error('KYC_AWS_ACCESS_KEY_ID/KYC_AWS_SECRET_ACCESS_KEY não configurados no Amplify.')
   }
 
-  const credentialProvider = defaultProvider()
-  return credentialProvider()
+  const sts = new STSClient({
+    region,
+    credentials: { accessKeyId, secretAccessKey }
+  })
+
+  const resp = await sts.send(new GetSessionTokenCommand({ DurationSeconds: 3600 }))
+  const creds = resp.Credentials
+
+  if (!creds?.AccessKeyId || !creds.SecretAccessKey || !creds.SessionToken || !creds.Expiration) {
+    throw new Error('STS não retornou credenciais temporárias válidas')
+  }
+
+  return {
+    accessKeyId: creds.AccessKeyId,
+    secretAccessKey: creds.SecretAccessKey,
+    sessionToken: creds.SessionToken,
+    expiration: creds.Expiration
+  }
 }
 
 export async function GET() {
@@ -47,20 +58,11 @@ export async function GET() {
   try {
     const creds = await resolveRuntimeCredentials()
 
-    if (!creds.accessKeyId || !creds.secretAccessKey || !creds.sessionToken) {
-      return NextResponse.json({ error: 'Provider não retornou credenciais temporárias válidas' }, { status: 500 })
-    }
-
-    const expiration =
-      creds.expiration instanceof Date
-        ? creds.expiration
-        : new Date(Date.now() + 60 * 60 * 1000)
-
     cached = {
       accessKeyId: creds.accessKeyId,
       secretAccessKey: creds.secretAccessKey,
       sessionToken: creds.sessionToken,
-      expiration: expiration.toISOString()
+      expiration: creds.expiration.toISOString()
     }
 
     return NextResponse.json(cached)
