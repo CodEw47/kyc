@@ -10,17 +10,10 @@ export interface KYCTokenPayload {
   exp?: number
 }
 
-function getAllowedApiKeys() {
-  // Dynamic env access prevents build-time inlining surprises in some SSR hosts.
-  const raw =
-    Reflect.get(process.env, 'KYC_ALLOWED_API_KEYS') ??
-    Reflect.get(process.env, 'KYC_ALLOWED_APIKEYS') ??
-    ''
+const HARDCODED_ALLOWED_API_KEYS = ['test', 'test1']
 
-  return raw
-    .split(',')
-    .map((key: string) => key.trim())
-    .filter(Boolean)
+function getAllowedApiKeys() {
+  return HARDCODED_ALLOWED_API_KEYS
 }
 
 function extractApiKey(req: NextRequest, bodyApiKey?: string) {
@@ -47,16 +40,6 @@ export async function POST(req: NextRequest) {
     const { token, apiKey } = body as { token?: string; apiKey?: string }
 
     const allowedApiKeys = getAllowedApiKeys()
-    if (allowedApiKeys.length === 0) {
-      return NextResponse.json(
-        {
-          error: 'KYC_ALLOWED_API_KEYS não configurada no backend',
-          hint: 'Defina a variável em Hosting > Environment variables e faça novo deploy.'
-        },
-        { status: 500 }
-      )
-    }
-
     const providedApiKey = extractApiKey(req, apiKey)
     if (!providedApiKey || !allowedApiKeys.includes(providedApiKey)) {
       return NextResponse.json({ error: 'API key inválida ou ausente' }, { status: 401 })
