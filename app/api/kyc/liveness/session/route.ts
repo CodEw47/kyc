@@ -8,6 +8,9 @@ import { rekognitionService } from '@/services/rekognition/rekognitionService'
  * Cria uma sessão de Face Liveness no AWS Rekognition.
  * Retorna { sessionId, date } para o cliente iniciar o FaceLivenessDetectorCore.
  */
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const cookieStore = await cookies()
   const kycToken = cookieStore.get('kycToken')?.value

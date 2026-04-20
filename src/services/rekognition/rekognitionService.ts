@@ -8,10 +8,10 @@ import {
 import { defaultProvider } from '@aws-sdk/credential-provider-node'
 
 function buildRekognitionClient() {
-  const region = process.env.AWS_REGION ?? 'us-east-1'
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
-  const sessionToken = process.env.AWS_SESSION_TOKEN
+  const region = process.env.KYC_AWS_REGION ?? 'us-east-1'
+  const accessKeyId = process.env.KYC_AWS_ACCESS_KEY_ID
+  const secretAccessKey = process.env.KYC_AWS_SECRET_ACCESS_KEY
+  const sessionToken = process.env.KYC_AWS_SESSION_TOKEN
 
   if (accessKeyId && secretAccessKey) {
     return new RekognitionClient({
