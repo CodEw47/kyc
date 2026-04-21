@@ -24,6 +24,17 @@ export async function GET() {
     return NextResponse.json(session)
   } catch (err) {
     console.error('[Liveness Session] Erro ao criar sessão Rekognition:', err)
-    return NextResponse.json({ error: 'Falha ao criar sessão de liveness' }, { status: 500 })
+    const details = err instanceof Error ? err.message : 'Erro desconhecido'
+    return NextResponse.json(
+      {
+        error: 'Falha ao criar sessão de liveness',
+        details,
+        debug: {
+          kycAwsRegion: process.env.KYC_AWS_REGION ?? null,
+          awsRegion: process.env.AWS_REGION ?? null,
+        },
+      },
+      { status: 500 }
+    )
   }
 }
