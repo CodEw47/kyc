@@ -13,6 +13,11 @@ import { useEffect, useState } from 'react'
 
 type Status = 'idle' | 'loading' | 'error'
 
+function getInitialKycRoute(sessionSteps: KYCStep[]) {
+  const isFaceOnlyFlow = sessionSteps.length === 1 && sessionSteps[0] === 'FACE'
+  return isFaceOnlyFlow ? AuthRoutes.FACE_BIOMETRY_INSTRUCTIONS : AuthRoutes.UPLOAD_DOCUMENTS
+}
+
 export function KYCEntryPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -26,7 +31,7 @@ export function KYCEntryPage() {
   useEffect(() => {
     if (!token) {
       if (activeToken && steps.length > 0) {
-        router.replace(AuthRoutes.UPLOAD_DOCUMENTS)
+        router.replace(getInitialKycRoute(steps))
         return
       }
 
@@ -67,8 +72,9 @@ export function KYCEntryPage() {
         return
       }
 
-      setSession(rawToken, decoded.webhookUrl, json.steps as KYCStep[])
-      router.replace(AuthRoutes.UPLOAD_DOCUMENTS)
+      const sessionSteps = json.steps as KYCStep[]
+      setSession(rawToken, decoded.webhookUrl, sessionSteps)
+      router.replace(getInitialKycRoute(sessionSteps))
     } catch {
       setErrorMessage('Erro ao iniciar sessão. Tente novamente.')
       setStatus('error')
