@@ -68,19 +68,18 @@ export async function POST(req: NextRequest) {
 
     const cookieStore = await cookies()
 
-    cookieStore.set('kycToken', token, {
+    const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      // Necessario para permitir cookie em iframe cross-site.
+      sameSite: 'none' as const,
+      secure: true,
       path: '/',
       maxAge: 60 * 60 // 1 hora
-    })
+    }
 
-    cookieStore.set('kycWebhookUrl', payload.webhookUrl, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: 60 * 60
-    })
+    cookieStore.set('kycToken', token, cookieOptions)
+
+    cookieStore.set('kycWebhookUrl', payload.webhookUrl, cookieOptions)
 
     return NextResponse.json({ ok: true, steps: payload.steps })
   } catch {
