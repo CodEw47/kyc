@@ -18,6 +18,24 @@ function getInitialKycRoute(sessionSteps: KYCStep[]) {
   return isFaceOnlyFlow ? AuthRoutes.FACE_BIOMETRY_INSTRUCTIONS : AuthRoutes.UPLOAD_DOCUMENTS
 }
 
+function getReadableEntryError(error: string) {
+  const normalizedError = error.toLowerCase()
+
+  if (normalizedError.includes('expired') || normalizedError.includes('expir')) {
+    return 'Este link de biometria expirou. Solicite um novo link para continuar.'
+  }
+
+  if (normalizedError.includes('token')) {
+    return 'O link de acesso esta invalido ou incompleto. Solicite um novo link e tente novamente.'
+  }
+
+  if (normalizedError.includes('api key')) {
+    return 'Nao foi possivel validar o acesso desta sessao. Gere um novo link e tente novamente.'
+  }
+
+  return 'Nao foi possivel iniciar sua sessao de biometria facial. Solicite um novo link e tente novamente.'
+}
+
 export function KYCEntryPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -58,7 +76,7 @@ export function KYCEntryPage() {
       const json = await res.json()
 
       if (!res.ok) {
-        setErrorMessage(json.error ?? 'Token inválido ou expirado.')
+        setErrorMessage(getReadableEntryError(String(json.error ?? '')))
         setStatus('error')
         return
       }
@@ -67,7 +85,7 @@ export function KYCEntryPage() {
       try {
         decoded = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf-8'))
       } catch {
-        setErrorMessage('Token malformado.')
+        setErrorMessage('O link de acesso esta corrompido ou incompleto. Solicite um novo link.')
         setStatus('error')
         return
       }
@@ -76,7 +94,7 @@ export function KYCEntryPage() {
       setSession(rawToken, decoded.webhookUrl, sessionSteps)
       router.replace(getInitialKycRoute(sessionSteps))
     } catch {
-      setErrorMessage('Erro ao iniciar sessão. Tente novamente.')
+      setErrorMessage('Nao foi possivel iniciar sua sessao de biometria facial por falha de conexao. Tente novamente em instantes.')
       setStatus('error')
     }
   }
@@ -97,7 +115,7 @@ export function KYCEntryPage() {
     <Container className="grid place-items-center">
       <div className="flex flex-col items-center gap-24 text-center">
         <Logo />
-        <Heading variant="titleH4">Link inválido</Heading>
+        <Heading variant="titleH4">Nao foi possivel abrir a biometria</Heading>
         <Text className="max-w-[320px]">{errorMessage}</Text>
         <Button onClick={() => window.history.back()} variant="outline">
           Voltar

@@ -13,17 +13,19 @@ export const displayText: FaceLivenessDetectorProps['displayText'] = {
   portraitMessageText:
     'Certifique que seu dispositivo permaneça em orientação retrato (vertical) até a conclusão da análise.',
   cameraNotFoundHeadingText: 'Câmera não está acessível',
-  cameraNotFoundMessageText: 'Verifique as permissões de câmera antes de continuar',
+  cameraNotFoundMessageText:
+    'Nao conseguimos acessar sua camera. Libere a permissao no navegador e feche outros apps que possam estar usando a camera.',
   cameraMinSpecificationsHeadingText: 'A câmera não tem os requisitos necessários',
-  cameraMinSpecificationsMessageText: 'A câmera deve suportar pelo menos a resolução 320x240 e 15 quadros por segundos',
+  cameraMinSpecificationsMessageText:
+    'A camera deste dispositivo nao atende aos requisitos minimos para a biometria facial. Tente usar outro aparelho.',
   hintMoveFaceFrontOfCameraText: 'Mova seu rosto para frente da câmera',
   hintTooManyFacesText: 'Certifique que apenas um rosto esteja na câmera',
   hintCanNotIdentifyText: 'Mova o seu rosto para próximo da câmera',
   hintFaceDetectedText: 'Rosto detectado. Aguarde.',
   hintTooCloseText: 'Afaste-se',
   hintTooFarText: 'Aproxime-se',
-  hintConnectingText: 'Conectando...',
-  hintVerifyingText: 'Analisando..',
+  hintConnectingText: 'Preparando a camera...',
+  hintVerifyingText: 'Validando sua biometria...',
   hintIlluminationTooBrightText: 'Mova-se para um lugar um pouco escuro',
   hintIlluminationTooDarkText: 'Mova-se para um lugar com mais luz',
   hintIlluminationNormalText: 'Condição de iluminação normal',
