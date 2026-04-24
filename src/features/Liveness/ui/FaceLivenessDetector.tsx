@@ -7,6 +7,7 @@ import { AmplifyThemeProvider } from '../providers/AmplifyThemeProvider'
 import { orangeTheme } from '../config/theme'
 import { displayText } from '../config/displayText'
 import { useWebhookDispatch } from '@/entities/KYC/hooks/useWebhookDispatch'
+import { useKYCSession } from '@/entities/KYC/models/useKYCSession'
 import { AuthRoutes } from '@/shared/types/routes/AuthRoutes'
 import { useRouter } from 'next/navigation'
 
@@ -155,9 +156,11 @@ export function FaceLiveness() {
   const [cameraErrorMessage, setCameraErrorMessage] = React.useState<string | null>(null)
   const [livenessUiError, setLivenessUiError] = React.useState<LivenessUiError | null>(null)
   const [retryCount, setRetryCount] = React.useState(0)
+  const [faceOnlyCompleted, setFaceOnlyCompleted] = React.useState(false)
   const initialized = React.useRef(false)
 
   const { dispatch } = useWebhookDispatch()
+  const { steps } = useKYCSession()
   const router = useRouter()
 
   React.useEffect(() => {
@@ -272,7 +275,13 @@ export function FaceLiveness() {
       })
 
       sendMessageToWebView({ ...result, sessionId: sessionData.sessionId })
-      router.replace(AuthRoutes.UPLOAD_DOCUMENTS)
+
+      const isFaceOnly = steps.length === 1 && steps[0] === 'FACE'
+      if (isFaceOnly) {
+        setFaceOnlyCompleted(true)
+      } else {
+        router.replace(AuthRoutes.UPLOAD_DOCUMENTS)
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido no pós-processamento do liveness'
       setLivenessUiError({
@@ -312,6 +321,20 @@ export function FaceLiveness() {
     }
 
     sendMessageToWebView({ ...error, sessionId: sessionData?.sessionId })
+  }
+
+  if (faceOnlyCompleted) {
+    return (
+      <div className="flex flex-col gap-6 items-center justify-center h-screen px-6 text-center">
+        <div className="flex items-center justify-center w-20 h-20 rounded-full bg-green-100">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h1 className="text-2xl font-bold text-gray-800">Biometria concluida</h1>
+        <p className="text-gray-600 max-w-sm">Sua identidade foi verificada com sucesso. Voce ja pode fechar esta tela.</p>
+      </div>
+    )
   }
 
   if (loading) {
