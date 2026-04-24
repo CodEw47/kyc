@@ -28,6 +28,15 @@ export async function POST(req: NextRequest) {
   const { step, data } = body
   const webhookUrl = body.webhookUrl ?? cookieWebhookUrl
 
+  const isDocumentValidationFailed =
+    step === 'DOCUMENT' &&
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as { validation?: { isValid?: boolean } }).validation?.isValid === 'boolean' &&
+    (data as { validation?: { isValid?: boolean } }).validation?.isValid === false
+
+  const dispatchStatus = isDocumentValidationFailed ? 'failed' : 'completed'
+
   if (!step) {
     return NextResponse.json({ error: '"step" é obrigatório' }, { status: 400 })
   }
@@ -45,7 +54,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         step,
-        status: 'completed',
+        status: dispatchStatus,
         data: data ?? {},
         timestamp: new Date().toISOString()
       })

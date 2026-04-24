@@ -3,6 +3,8 @@ import {
   CreateFaceLivenessSessionCommand,
   GetFaceLivenessSessionResultsCommand,
   CompareFacesCommand,
+  DetectTextCommand,
+  TextTypes,
   LivenessSessionStatus
 } from '@aws-sdk/client-rekognition'
 function buildRekognitionClient() {
@@ -40,6 +42,13 @@ export interface LivenessResult {
 export interface FaceComparisonResult {
   isSameFace: boolean
   similarity: number
+}
+
+export interface DocumentValidationResult {
+  isValid: boolean
+  detectedType: 'RG' | 'CNH' | 'UNKNOWN'
+  confidence: number
+  reasons: string[]
 }
 
 export class RekognitionService {
@@ -104,6 +113,76 @@ export class RekognitionService {
     return {
       isSameFace: similarity >= similarityThreshold,
       similarity
+    }
+  }
+
+  async validateBrazilianDocument(documentType: 'RG' | 'CNH', imagesBase64: string[]): Promise<DocumentValidationResult> {
+    if (!imagesBase64.length) {
+      return {
+        isValid: false,
+        detectedType: 'UNKNOWN',
+        confidence: 0,
+        reasons: ['Nenhuma imagem foi enviada para validacao']
+      }
+    }
+
+    const extractTextFromImage = async (base64Image: string): Promise<string> => {
+      const bytes = Buffer.from(base64Image.replace(/^data:image\/\w+;base64,/, ''), 'base64')
+      const command = new DetectTextCommand({
+        Image: { Bytes: bytes }
+      })
+
+      const response = await client.send(command)
+      return (
+        response.TextDetections?.filter((item) => item.Type === TextTypes.LINE)
+          .map((item) => item.DetectedText ?? '')
+          .join(' ') ?? ''
+      )
+    }
+
+    const texts = await Promise.all(imagesBase64.map((image) => extractTextFromImage(image)))
+    const normalizedText = texts.join(' ').toLowerCase()
+
+    const rgTokens = ['registro geral', 'identidade', 'carteira de identidade', 'rg']
+    const cnhTokens = ['carteira nacional de habilitacao', 'cnh', 'habilitacao', 'permissao para dirigir']
+
+    const rgScore = rgTokens.reduce((acc, token) => acc + (normalizedText.includes(token) ? 1 : 0), 0)
+    const cnhScore = cnhTokens.reduce((acc, token) => acc + (normalizedText.includes(token) ? 1 : 0), 0)
+
+    const hasRGLikeNumber = /\b\d{1,2}[\.-]?\d{3}[\.-]?\d{3}[\.-]?[\da-z]\b|\b\d{7,10}\b/.test(normalizedText)
+    const hasCPF = /\b\d{3}[\.-]?\d{3}[\.-]?\d{3}[\/-]?\d{2}\b/.test(normalizedText)
+
+    const detectedType: DocumentValidationResult['detectedType'] =
+      rgScore === 0 && cnhScore === 0 ? 'UNKNOWN' : rgScore >= cnhScore ? 'RG' : 'CNH'
+
+    const reasons: string[] = []
+    if (detectedType === 'UNKNOWN') {
+      reasons.push('Nao foi possivel reconhecer padroes de RG/CNH no documento')
+    }
+
+    if (documentType === 'RG' && !hasRGLikeNumber) {
+      reasons.push('Nao encontramos um numero de RG legivel na imagem enviada')
+    }
+
+    if (documentType === 'CNH' && !hasCPF) {
+      reasons.push('Nao encontramos um CPF legivel na CNH enviada')
+    }
+
+    if (detectedType !== 'UNKNOWN' && detectedType !== documentType) {
+      reasons.push(`Documento aparenta ser ${detectedType}, mas o esperado era ${documentType}`)
+    }
+
+    const baseConfidence = Math.min(1, (rgScore + cnhScore) / 4)
+    const confidencePenalty = Math.min(0.6, reasons.length * 0.2)
+    const confidence = Math.max(0, baseConfidence - confidencePenalty)
+
+    const isValid = reasons.length === 0
+
+    return {
+      isValid,
+      detectedType,
+      confidence,
+      reasons
     }
   }
 }

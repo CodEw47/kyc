@@ -11,19 +11,58 @@ import { Icon } from '@/shared/ui/Icon'
 import { Link } from '@/shared/ui/Link'
 import { PageProgress } from '@/shared/ui/PageProgress'
 import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 
 export function UploadPreviewPage() {
   const { documents, reset, documentType } = useUploadPreview()
   const { replace } = useRouter()
   const { dispatch } = useWebhookDispatch()
+  const [validationMessage, setValidationMessage] = useState<string | null>(null)
 
   async function onConfirm() {
-    await dispatch(documentType === 'RESIDENCE' ? 'RESIDENCE' : 'DOCUMENT', {
+    setValidationMessage(null)
+
+    const isResidence = documentType === 'RESIDENCE'
+    let validationPayload: Record<string, unknown> = {}
+    let hasValidationError = false
+
+    if (!isResidence && documentType) {
+      const validationResponse = await fetch('/api/kyc/document/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType,
+          documents: documents.map((item) => ({ imageUrl: item.imageUrl }))
+        })
+      })
+
+      const validationJson = await validationResponse.json()
+
+      if (!validationResponse.ok) {
+        throw new Error(String(validationJson.error ?? 'Falha ao validar documento'))
+      }
+
+      validationPayload = {
+        validation: validationJson
+      }
+
+      if (!validationJson.isValid) {
+        const reasons = Array.isArray(validationJson.reasons) ? validationJson.reasons.join(' | ') : ''
+        hasValidationError = true
+        setValidationMessage(reasons || 'Nao foi possivel validar o documento enviado. Refaça as fotos e tente novamente.')
+      }
+    }
+
+    await dispatch(isResidence ? 'RESIDENCE' : 'DOCUMENT', {
       documentType,
-      count: documents.length
+      count: documents.length,
+      ...validationPayload
     })
-    reset()
-    replace(AuthRoutes.UPLOAD_DOCUMENTS)
+
+    if (isResidence || !hasValidationError) {
+      reset()
+      replace(AuthRoutes.UPLOAD_DOCUMENTS)
+    }
   }
 
   return (
@@ -58,6 +97,7 @@ export function UploadPreviewPage() {
           )
         })}
       </div>
+      {validationMessage && <p className="mt-8 text-sm text-red-600">{validationMessage}</p>}
       <Button onClick={onConfirm} className="mt-32">
         Confirmar imagens
       </Button>
