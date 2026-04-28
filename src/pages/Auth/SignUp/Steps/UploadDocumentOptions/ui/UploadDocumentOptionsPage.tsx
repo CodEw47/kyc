@@ -1,3 +1,5 @@
+'use client'
+
 import { StepHeader } from '@/entities/SignUp/ui/StepHeader'
 import { useKYCSession } from '@/entities/KYC/models/useKYCSession'
 import { AuthRoutes } from '@/shared/types/routes/AuthRoutes'
