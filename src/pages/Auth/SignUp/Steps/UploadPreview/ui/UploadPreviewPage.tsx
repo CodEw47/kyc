@@ -158,7 +158,6 @@ export function UploadPreviewPage() {
         </div>
       </Container>
     )
-    }
   }
 
   return (
