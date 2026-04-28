@@ -1,4 +1,5 @@
 import { StepHeader } from '@/entities/SignUp/ui/StepHeader'
+import { useKYCSession } from '@/entities/KYC/models/useKYCSession'
 import { AuthRoutes } from '@/shared/types/routes/AuthRoutes'
 import { Container } from '@/shared/ui/Container'
 import { Heading } from '@/shared/ui/Heading'
@@ -29,26 +30,35 @@ function UploadDocumentLink({ description, heading, href }: UploadDocumentItemPr
 }
 
 export function UploadDocumentOptionsPage() {
+  const kycSession = useKYCSession()
+  const allowedSteps = kycSession?.steps || []
+
   return (
     <Container>
       <PageProgress description="Etapa 3 de 5" />
       <StepHeader description="Envie seus documentos de identificação. Verifique se as imagens estão claras e em boa resolução." />
       <div className="mt-[51px] space-y-32">
-        <UploadDocumentLink
+        {allowedSteps.includes('DOCUMENT') && (
+          <UploadDocumentLink
           href={AuthRoutes.DOCUMENT_IDENTITY_OPTIONS}
           heading="Documento de Identificação"
           description="Enviar documento"
         />
-        <UploadDocumentLink
+        )}
+        {allowedSteps.includes('RESIDENCE') && (
+          <UploadDocumentLink
           href={AuthRoutes.RESIDENCE_PROOF_OPTIONS}
           heading="Comprovante de Residência"
           description="Enviar comprovante"
         />
-        <UploadDocumentLink
+        )}
+        {allowedSteps.includes('FACE') && (
+          <UploadDocumentLink
           href={AuthRoutes.FACE_BIOMETRY_INSTRUCTIONS}
           heading="Biometria Facial"
           description="Enviar Selfie"
         />
+        )}
       </div>
     </Container>
   )
