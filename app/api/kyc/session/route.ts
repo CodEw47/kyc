@@ -25,6 +25,21 @@ function extractApiKey(req: NextRequest, bodyApiKey?: string) {
   return null
 }
 
+function decodeKycToken(rawToken: string) {
+  const normalized = rawToken
+    .trim()
+    // Alguns clientes convertem '+' para espaço ao montar URLs.
+    .replace(/\s/g, '+')
+    // Aceita variação base64url.
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+
+  const paddingLength = (4 - (normalized.length % 4)) % 4
+  const padded = normalized + '='.repeat(paddingLength)
+
+  return Buffer.from(padded, 'base64').toString('utf-8')
+}
+
 /**
  * POST /api/kyc/session
  *
@@ -52,7 +67,7 @@ export async function POST(req: NextRequest) {
     let payload: KYCTokenPayload
 
     try {
-      const decoded = Buffer.from(token, 'base64').toString('utf-8')
+      const decoded = decodeKycToken(token)
       payload = JSON.parse(decoded) as KYCTokenPayload
     } catch {
       return NextResponse.json({ error: 'Token inválido ou malformado' }, { status: 401 })

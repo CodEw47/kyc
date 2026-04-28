@@ -36,6 +36,21 @@ function getReadableEntryError(error: string) {
   return 'Nao foi possivel iniciar sua sessao de biometria facial. Solicite um novo link e tente novamente.'
 }
 
+function decodeKycToken(rawToken: string) {
+  const normalized = rawToken
+    .trim()
+    // Alguns clientes convertem '+' para espaço ao montar URLs.
+    .replace(/\s/g, '+')
+    // Aceita variação base64url.
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+
+  const paddingLength = (4 - (normalized.length % 4)) % 4
+  const padded = normalized + '='.repeat(paddingLength)
+
+  return Buffer.from(padded, 'base64').toString('utf-8')
+}
+
 export function KYCEntryPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -83,7 +98,7 @@ export function KYCEntryPage() {
 
       let decoded: { webhookUrl: string; steps: string[] }
       try {
-        decoded = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf-8'))
+        decoded = JSON.parse(decodeKycToken(rawToken))
       } catch {
         setErrorMessage('O link de acesso esta corrompido ou incompleto. Solicite um novo link.')
         setStatus('error')
