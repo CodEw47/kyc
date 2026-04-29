@@ -43,7 +43,6 @@ interface ReadableLivenessError {
 
 interface LivenessCompletionState {
   isLive: boolean
-  details: string[]
 }
 
 function serializeErrorPayload(payload: unknown): string {
@@ -309,17 +308,8 @@ export function FaceLiveness() {
         step: 'FACE'
       })
 
-      const details = [
-        `Liveness: ${(result.isLive ?? false) ? 'aprovado' : 'reprovado'}`,
-        `Comparacao de imagem: ${result.auditImageComparisons ? 'ok' : 'pendente'}`,
-        `Nome: ${result.nameEquals ? 'confere' : 'nao confere'}`,
-        `CPF: ${result.cpfEquals ? 'confere' : 'nao confere'}`,
-        `Nascimento: ${result.birthDateEquals ? 'confere' : 'nao confere'}`
-      ]
-
       setCompletionState({
-        isLive: Boolean(result.isLive),
-        details
+        isLive: Boolean(result.isLive)
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido no pós-processamento do liveness'
@@ -366,45 +356,57 @@ export function FaceLiveness() {
     const canReturnToSteps = steps.length > 1
 
     return (
-      <div className="flex flex-col gap-6 items-center justify-center h-screen px-6 text-center">
+      <div className="flex flex-col gap-6 items-center justify-center h-screen px-6 text-center bg-gray-50">
         <div
-          className={`flex items-center justify-center w-20 h-20 rounded-full ${
-            completionState.isLive ? 'bg-green-100' : 'bg-red-100'
+          className={`flex items-center justify-center w-20 h-20 rounded-full shadow-sm ${
+            completionState.isLive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
           }`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className={`w-10 h-10 ${completionState.isLive ? 'text-green-600' : 'text-red-600'}`}
+            className="w-10 h-10"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
             strokeWidth={2.5}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            {completionState.isLive ? (
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            )}
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-gray-800">
-          {completionState.isLive ? 'Biometria concluida' : 'Biometria reprovada'}
+        <h1 className="text-2xl font-semibold text-gray-800">
+          {completionState.isLive ? 'Biometria finalizada' : 'Biometria nao aprovada'}
         </h1>
-        <p className="text-gray-600 max-w-sm">
+        <p className="text-gray-600 max-w-md leading-relaxed">
           {completionState.isLive
-            ? 'O resultado do liveness ja foi enviado para a AssinaDoc. Voce pode fechar esta tela ou voltar para as etapas.'
-            : 'A analise facial terminou, mas nao foi aprovada. O resultado ja foi enviado para a AssinaDoc.'}
+            ? 'Sua validacao facial foi concluida com sucesso. Volte para a assinatura no sistema de origem para continuar.'
+            : 'Nao foi possivel aprovar a validacao facial. Retorne ao sistema de origem para tentar novamente.'}
         </p>
-        <div className="max-w-md rounded-md border border-gray-200 bg-white p-4 text-left text-sm text-gray-600">
-          {completionState.details.map((detail) => (
-            <p key={detail}>{detail}</p>
-          ))}
-        </div>
-        {canReturnToSteps ? (
+        <div className="flex gap-3">
+          {canReturnToSteps ? (
+            <button
+              type="button"
+              className="rounded-xl border border-gray-300 bg-white px-4 py-3 font-medium text-gray-700"
+              onClick={() => router.replace(AuthRoutes.UPLOAD_DOCUMENTS)}
+            >
+              Voltar para etapas
+            </button>
+          ) : null}
           <button
             type="button"
-            className="rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-lg shadow-blue-900/30"
-            onClick={() => router.replace(AuthRoutes.UPLOAD_DOCUMENTS)}
+            className="rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-lg shadow-blue-900/20"
+            onClick={() => {
+              if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+                window.parent.postMessage({ source: 'kyc', type: 'KYC_FACE_FINISHED' }, '*')
+              }
+            }}
           >
-            Voltar para etapas
+            Concluir
           </button>
-        ) : null}
+        </div>
       </div>
     )
   }
