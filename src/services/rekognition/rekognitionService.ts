@@ -3,10 +3,32 @@ import {
   CreateFaceLivenessSessionCommand,
   GetFaceLivenessSessionResultsCommand,
   CompareFacesCommand,
-  DetectTextCommand,
-  TextTypes,
   LivenessSessionStatus
 } from '@aws-sdk/client-rekognition'
+import {
+  TextractClient,
+  DetectDocumentTextCommand,
+  BlockType
+} from '@aws-sdk/client-textract'
+
+function buildTextractClient() {
+  const region = process.env.KYC_AWS_REGION ?? 'us-east-1'
+  const accessKeyId = process.env.KYC_AWS_ACCESS_KEY_ID
+  const secretAccessKey = process.env.KYC_AWS_SECRET_ACCESS_KEY
+  const sessionToken = process.env.KYC_AWS_SESSION_TOKEN
+
+  if (accessKeyId && secretAccessKey) {
+    return new TextractClient({
+      region,
+      credentials: { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) },
+    })
+  }
+
+  return new TextractClient({ region })
+}
+
+const textractClient = buildTextractClient()
+
 function buildRekognitionClient() {
   // KYC_AWS_REGION garante us-east-1 onde Rekognition Face Liveness está disponível
   // (o app Amplify roda em us-east-2 onde o serviço não existe)
@@ -128,14 +150,14 @@ export class RekognitionService {
 
     const extractTextFromImage = async (base64Image: string): Promise<string> => {
       const bytes = Buffer.from(base64Image.replace(/^data:image\/\w+;base64,/, ''), 'base64')
-      const command = new DetectTextCommand({
-        Image: { Bytes: bytes }
+      const command = new DetectDocumentTextCommand({
+        Document: { Bytes: bytes }
       })
 
-      const response = await client.send(command)
+      const response = await textractClient.send(command)
       return (
-        response.TextDetections?.filter((item) => item.Type === TextTypes.LINE)
-          .map((item) => item.DetectedText ?? '')
+        response.Blocks?.filter((block) => block.BlockType === BlockType.LINE)
+          .map((block) => block.Text ?? '')
           .join(' ') ?? ''
       )
     }
