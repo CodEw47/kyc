@@ -8,23 +8,38 @@ export const dynamic = 'force-dynamic'
 type DocumentType = 'RG' | 'CNH' | 'RESIDENCE'
 
 interface ValidateDocumentRequestBody {
+  apiKey?: string
   documentType?: DocumentType
   documents?: Array<{ imageUrl?: string }>
+}
+
+const HARDCODED_ALLOWED_API_KEYS = ['test', 'test1']
+
+function extractApiKey(req: NextRequest, bodyApiKey?: string) {
+  const fromHeader = req.headers.get('x-api-key')
+  if (fromHeader) return fromHeader
+
+  if (bodyApiKey && typeof bodyApiKey === 'string') return bodyApiKey
+
+  return null
 }
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
   const kycToken = cookieStore.get('kycToken')?.value
 
-  if (!kycToken) {
-    return NextResponse.json({ error: 'Sessao KYC nao encontrada ou expirada' }, { status: 401 })
-  }
-
   let body: ValidateDocumentRequestBody
   try {
     body = (await req.json()) as ValidateDocumentRequestBody
   } catch {
     return NextResponse.json({ error: 'Corpo da requisicao invalido' }, { status: 400 })
+  }
+
+  const providedApiKey = extractApiKey(req, body.apiKey)
+  const hasValidApiKey = !!providedApiKey && HARDCODED_ALLOWED_API_KEYS.includes(providedApiKey)
+
+  if (!kycToken && !hasValidApiKey) {
+    return NextResponse.json({ error: 'Sessao KYC nao encontrada ou expirada' }, { status: 401 })
   }
 
   const documentType = body.documentType
