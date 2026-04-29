@@ -5,8 +5,9 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export interface KYCTokenPayload {
-  webhookUrl: string
+  webhookUrl?: string
   steps: string[]
+  disableWebhook?: boolean
   exp?: number
 }
 
@@ -44,8 +45,8 @@ function decodeKycToken(rawToken: string) {
  * POST /api/kyc/session
  *
  * Recebe { token } no corpo.
- * Decodifica o token (base64-JSON) para extrair webhookUrl e steps.
- * Armazena webhookUrl em cookie httpOnly para uso seguro no webhook dispatch.
+ * Decodifica o token (base64-JSON) para extrair steps e webhookUrl (opcional).
+ * Quando webhookUrl existir, armazena em cookie httpOnly para uso no webhook dispatch.
  *
  * Em produção, substitua a decodificação base64 por verificação de JWT assinado.
  */
@@ -73,8 +74,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Token inválido ou malformado' }, { status: 401 })
     }
 
-    if (!payload.webhookUrl || !Array.isArray(payload.steps) || payload.steps.length === 0) {
-      return NextResponse.json({ error: 'Token não contém webhookUrl ou steps' }, { status: 422 })
+    if (!Array.isArray(payload.steps) || payload.steps.length === 0) {
+      return NextResponse.json({ error: 'Token não contém steps' }, { status: 422 })
     }
 
     if (payload.exp && Date.now() / 1000 > payload.exp) {
@@ -94,7 +95,9 @@ export async function POST(req: NextRequest) {
 
     cookieStore.set('kycToken', token, cookieOptions)
 
-    cookieStore.set('kycWebhookUrl', payload.webhookUrl, cookieOptions)
+    if (payload.webhookUrl) {
+      cookieStore.set('kycWebhookUrl', payload.webhookUrl, cookieOptions)
+    }
 
     return NextResponse.json({ ok: true, steps: payload.steps })
   } catch {

@@ -4,10 +4,15 @@ import { useCallback } from 'react'
 import { useKYCSession, KYCStep } from '../models/useKYCSession'
 
 export function useWebhookDispatch() {
-  const { webhookUrl, completeStep } = useKYCSession()
+  const { webhookUrl, disableWebhook, completeStep } = useKYCSession()
 
   const dispatch = useCallback(
     async (step: KYCStep, data?: Record<string, unknown>) => {
+      if (disableWebhook) {
+        completeStep(step)
+        return
+      }
+
       if (!webhookUrl) {
         throw new Error('Webhook URL não configurada na sessão KYC')
       }
@@ -40,7 +45,7 @@ export function useWebhookDispatch() {
 
       completeStep(step)
     },
-    [webhookUrl, completeStep]
+    [disableWebhook, webhookUrl, completeStep]
   )
 
   return { dispatch }

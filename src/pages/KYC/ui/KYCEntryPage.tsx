@@ -96,7 +96,7 @@ export function KYCEntryPage() {
         return
       }
 
-      let decoded: { webhookUrl: string; steps: string[] }
+      let decoded: { webhookUrl?: string; steps: string[]; disableWebhook?: boolean }
       try {
         decoded = JSON.parse(decodeKycToken(rawToken))
       } catch {
@@ -106,7 +106,7 @@ export function KYCEntryPage() {
       }
 
       const sessionSteps = json.steps as KYCStep[]
-      setSession(rawToken, decoded.webhookUrl, sessionSteps)
+      setSession(rawToken, decoded.webhookUrl ?? null, sessionSteps, Boolean(decoded.disableWebhook))
       router.replace(getInitialKycRoute(sessionSteps))
     } catch {
       setErrorMessage('Nao foi possivel iniciar sua sessao de biometria facial por falha de conexao. Tente novamente em instantes.')

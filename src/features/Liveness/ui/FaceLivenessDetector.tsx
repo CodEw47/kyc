@@ -54,14 +54,33 @@ function serializeErrorPayload(payload: unknown): string {
   }
 }
 
-function sendMessageToWebView(message: object, retries = 5, delay = 1000) {
+function sendMessageToWebView(message: Record<string, unknown>, retries = 5, delay = 1000) {
+  const payload = {
+    source: 'kyc',
+    type: 'KYC_FACE_RESULT',
+    ...message
+  }
+
+  // Integração browser-to-browser (iframe -> página pai)
+  try {
+    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+      window.parent.postMessage(payload, '*')
+    }
+
+    if (typeof window !== 'undefined' && window.top && window.top !== window) {
+      window.top.postMessage(payload, '*')
+    }
+  } catch (err) {
+    console.error('[WebView] Erro ao enviar postMessage para parent/top:', err)
+  }
+
   let attempts = 0
   const send = () => {
     try {
       // @ts-expect-error ReactNativeWebView não possui tipos
       if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
         // @ts-expect-error ReactNativeWebView não possui tipos
-        window.ReactNativeWebView.postMessage(JSON.stringify(message))
+        window.ReactNativeWebView.postMessage(JSON.stringify(payload))
       } else if (attempts < retries) {
         attempts++
         setTimeout(send, delay)
@@ -279,7 +298,16 @@ export function FaceLiveness() {
         birthDateEquals: result.birthDateEquals
       })
 
-      sendMessageToWebView({ ...result, sessionId: sessionData.sessionId })
+      sendMessageToWebView({
+        sessionId: sessionData.sessionId,
+        isLive: Boolean(result.isLive),
+        auditImageComparisons: Boolean(result.auditImageComparisons),
+        nameEquals: Boolean(result.nameEquals),
+        cpfEquals: Boolean(result.cpfEquals),
+        birthDateEquals: Boolean(result.birthDateEquals),
+        status: result.isLive ? 'approved' : 'not_live',
+        step: 'FACE'
+      })
 
       const details = [
         `Liveness: ${(result.isLive ?? false) ? 'aprovado' : 'reprovado'}`,
