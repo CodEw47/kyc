@@ -163,7 +163,11 @@ export class RekognitionService {
     }
 
     const texts = await Promise.all(imagesBase64.map((image) => extractTextFromImage(image)))
-    const normalizedText = texts.join(' ').toLowerCase()
+    const normalizedText = texts
+      .join(' ')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
 
     const rgTokens = ['registro geral', 'identidade', 'carteira de identidade', 'rg']
     const cnhTokens = ['carteira nacional de habilitacao', 'cnh', 'habilitacao', 'permissao para dirigir']
@@ -171,7 +175,8 @@ export class RekognitionService {
     const rgScore = rgTokens.reduce((acc, token) => acc + (normalizedText.includes(token) ? 1 : 0), 0)
     const cnhScore = cnhTokens.reduce((acc, token) => acc + (normalizedText.includes(token) ? 1 : 0), 0)
 
-    const hasRGLikeNumber = /\b\d{1,2}[\.-]?\d{3}[\.-]?\d{3}[\.-]?[\da-z]\b|\b\d{7,10}\b/.test(normalizedText)
+    // RG antigo pode ter numeracao curta (ex.: 6 digitos). Aceitamos 5 a 10 digitos.
+    const hasRGLikeNumber = /\b\d{1,2}[\.-]?\d{3}[\.-]?\d{3}[\.-]?[\da-z]\b|\b\d{5,10}\b/.test(normalizedText)
     const hasCPF = /\b\d{3}[\.-]?\d{3}[\.-]?\d{3}[\/-]?\d{2}\b/.test(normalizedText)
 
     const detectedType: DocumentValidationResult['detectedType'] =
